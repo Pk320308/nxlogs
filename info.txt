@@ -1,0 +1,69 @@
+open this path in notepad 
+"C:\Program Files\nxlog\conf\nxlog.conf"
+ remove exits content on path  and paste new  content
+
+## =====================================================================
+## ASTRA SIEM — Enterprise NXLog Syslog Relay Configuration
+## Purpose : High-Throughput Palo Alto Networks Firewall Telemetry Ingestion
+## Target  : C:\ASTRA_Logs\paloalto.log
+## =====================================================================
+
+Panic Soft
+
+# Default paths for 64-bit Windows installation
+define ROOT C:\Program Files\nxlog
+Moduledir %ROOT%\modules
+CacheDir  %ROOT%\data
+Pidfile   %ROOT%\data\nxlog.pid
+SpoolDir  %ROOT%\data
+LogFile   %ROOT%\data\nxlog.log
+
+# Extension module for syslog handling
+<Extension _syslog>
+    Module      xm_syslog
+</Extension>
+
+# Extension module for automated log file rotation
+<Extension _fileop>
+    Module      xm_fileop
+</Extension>
+
+# Inbound Syslog Listener from Palo Alto Firewall (UDP 514)
+<Input in_paloalto>
+    Module      im_udp
+    Host        0.0.0.0
+    Port        514
+    # Preserves pristine PAN-OS raw payload for ASTRA decoders
+    Exec        to_syslog_bsd();
+</Input>
+
+# Local File Persistence with 500MB Auto-Rotation
+<Output out_file>
+    Module      om_file
+    File        "C:\\ASTRA_Logs\\paloalto.log"
+    # Auto-rotate when file exceeds 500MB (keeps current file streaming seamlessly)
+    Exec        if (file_size() > 500M) rotate_to("C:\\ASTRA_Logs\\paloalto_" + strftime(now(), "%Y%m%d_%H%M%S") + ".log");
+</Output>
+
+# Active Pipeline Routing
+<Route route_paloalto_to_astra>
+    Path        in_paloalto => out_file
+</Route>
+
+
+
+
+
+
+
+# Restart NXLog Service
+Restart-Service -Name nxlog
+
+
+
+# Verify that NXLog is actively running
+Get-Service -Name nxlog | Select-Object Name, Status, StartType
+
+
+# Verify Incoming Firewall Logs:
+Get-Content -Path "C:\ASTRA_Logs\paloalto.log" -Tail 10
